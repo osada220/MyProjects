@@ -6,12 +6,13 @@ import time
 import sys
 import math
 import random
+
 begin_replace_table = (
     58, 50, 42, 34, 26, 18, 10, 2,
     60, 52, 44, 36, 28, 20, 12, 4,
     62, 54, 46, 38, 30, 22, 14, 6,
     64, 56, 48, 40, 32, 24, 16, 8,
-    57, 49, 41, 33, 25, 17,  9, 1,
+    57, 49, 41, 33, 25, 17, 9, 1,
     59, 51, 43, 35, 27, 19, 11, 3,
     61, 53, 45, 37, 29, 21, 13, 5,
     63, 55, 47, 39, 31, 23, 15, 7
@@ -103,72 +104,79 @@ p_box_replace_table = (
     2, 8, 24, 14, 32, 27, 3, 9, 19, 13, 30, 6, 22, 11, 4, 25,
 )
 spin_table = (1, 2, 4, 6, 8, 10, 12, 14, 15, 17, 19, 21, 23, 25, 27, 28)
+
+
 def crypt(mode, data_in_, number_of_blocks, kkey, queues):
     line_good = ''
     counter = 0
     for g in range(number_of_blocks):
         line_in_bad = ''
-        #получение 64-битовых блоков
-        for elem in data_in_[g*8:(g+1)*8]:
+        # получение 64-битовых блоков
+        for elem in data_in_[g * 8:(g + 1) * 8]:
             byte = bin(elem)[2:]
-            while len(byte)<8:
-                byte = '0'+byte
+            while len(byte) < 8:
+                byte = '0' + byte
             line_in_bad += byte
         line_in_good = ''
-        #начальная перестановка
+        # начальная перестановка
         for i in range(64):
-            line_in_good += line_in_bad[begin_replace_table[i]-1]
+            line_in_good += line_in_bad[begin_replace_table[i] - 1]
         if mode == 2:
             r_next = line_in_good[:32]
             l_next = line_in_good[32:]
         else:
             l_next = line_in_good[:32]
             r_next = line_in_good[32:]
-        #16 раундов сети Фейстеля
-        for i in range(1,17):
+        # 16 раундов сети Фейстеля
+        for i in range(1, 17):
             l_current = l_next
             l_next = r_next
-            #функция f
-            r_next = bin(int(l_current,2)^int(f(r_next,kkey[i]),2))[2:]
-            while len(r_next)<32:
-                r_next = '0'+r_next
+            # функция f
+            r_next = bin(int(l_current, 2) ^ int(f(r_next, kkey[i]), 2))[2:]
+            while len(r_next) < 32:
+                r_next = '0' + r_next
         if mode == 2:
-            line_out = r_next+l_next
+            line_out = r_next + l_next
         else:
-            line_out = l_next+r_next
-        #конечная перестановка
+            line_out = l_next + r_next
+        # конечная перестановка
         for i in range(64):
-            line_good += line_out[end_replace_table[i]-1]
-        #заполнение очередей
+            line_good += line_out[end_replace_table[i] - 1]
+        # заполнение очередей
         if g == number_of_blocks - 1 or g % 125 == 0 and g > 0:
-            queues[counter].put([chr(int(line_good[8*i:8*(i+1)],2)).encode('charmap') for i in range(len(line_good)//8)])
+            queues[counter].put(
+                [chr(int(line_good[8 * i:8 * (i + 1)], 2)).encode('charmap') for i in range(len(line_good) // 8)])
             counter += 1
             line_good = ''
+
+
 def f(data_in, _key):
-    b = ['']*8
+    b = [''] * 8
     data_out = ''
-    #расширение 32-битовой половины блока до 48 бит
+    # расширение 32-битовой половины блока до 48 бит
     for i in range(48):
-        data_out += data_in[extend_table[i]-1]
-    #XOR данных и ключа
-    data_in = bin(int(data_out,2)^int(_key,2))[2:]
-    while len(data_in)<48:
-        data_in = '0'+data_in
-    #разбиение 48-битовой последовательности на 8 частей по 6 бит
+        data_out += data_in[extend_table[i] - 1]
+    # XOR данных и ключа
+    data_in = bin(int(data_out, 2) ^ int(_key, 2))[2:]
+    while len(data_in) < 48:
+        data_in = '0' + data_in
+    # разбиение 48-битовой последовательности на 8 частей по 6 бит
     for i in range(8):
-        b[i] = data_in[i*6:(i+1)*6]
+        b[i] = data_in[i * 6:(i + 1) * 6]
     data_in = ''
-    #применене S-преобразования
+    # применене S-преобразования
     for i in range(8):
-        data_out = bin(s_box_table[i][int(b[i][0]+b[i][5],2)][int((b[i][1:5]),2)])[2:]
-        while len(data_out)<6:
-            data_out = '0'+data_out
+        data_out = bin(s_box_table[i][int(b[i][0] + b[i][5], 2)][int((b[i][1:5]), 2)])[2:]
+        while len(data_out) < 6:
+            data_out = '0' + data_out
         data_in += data_out
     # P-перестановка
     data_out = ''
     for i in range(32):
-        data_out += data_in[p_box_replace_table[i]-1]
+        data_out += data_in[p_box_replace_table[i] - 1]
     return data_out
+
+
 def crypt_data(data, data_size):
     global mode
     global k
@@ -181,66 +189,81 @@ def crypt_data(data, data_size):
     i = 0
     if blocks_count_per_process:
         for i in range(cpu_count):
-            #запуск процессов
+            # запуск процессов
             queues.append([multiprocessing.Queue() for s in range(math.ceil(blocks_count_per_process / 125))])
-            processes.append(multiprocessing.Process(target=crypt, args=(mode, data[8*blocks_count_per_process*i:8*blocks_count_per_process*(i+1)], blocks_count_per_process, k.copy(), queues[i])))
+            processes.append(multiprocessing.Process(target=crypt, args=(
+            mode, data[8 * blocks_count_per_process * i:8 * blocks_count_per_process * (i + 1)],
+            blocks_count_per_process, k.copy(), queues[i])))
             processes[i].start()
     # работа с последними блоками в основном процессе
     blocks_left = blocks_count - blocks_count_per_process * cpu_count
-    line_for_input = data[8*blocks_count_per_process*(i+1):]
+    line_for_input = data[8 * blocks_count_per_process * (i + 1):]
     if mode == 1 and data_size % 8 != 0:
         for i in range(8 - data_size % 8):
-            line_for_input = line_for_input[:len(line_for_input)//8*8]+b'\x14'+line_for_input[len(line_for_input)//8*8:]
-    #ожидание завершения процессов
+            line_for_input = line_for_input[:len(line_for_input) // 8 * 8] + b'\x14' + line_for_input[
+                                                                                       len(line_for_input) // 8 * 8:]
+    # ожидание завершения процессов
     if blocks_count_per_process:
         for i in range(cpu_count):
             processes[i].join()
     queues.append([multiprocessing.Queue() for s in range(math.ceil(blocks_left / 125))])
     crypt(mode, line_for_input, blocks_left, k, queues[-1])
-    #обработка полученных очередей
-    cyphers = [[] for i in range(cpu_count+1 if blocks_count_per_process else 1)]
-    for i in range(cpu_count+1 if blocks_count_per_process else 1):
+    # обработка полученных очередей
+    cyphers = [[] for i in range(cpu_count + 1 if blocks_count_per_process else 1)]
+    for i in range(cpu_count + 1 if blocks_count_per_process else 1):
         for j in range(len(queues[i])):
             cyphers[i].extend(queues[i][j].get())
     ctr = 0
-    #обработка последнего блока
+    # обработка последнего блока
     if mode == 2:
-        while cyphers[-1][ctr-8] == b'\x14':
-            cyphers[-1] = cyphers[-1][:ctr-8]+cyphers[-1][ctr-7:]
+        while cyphers[-1][ctr - 8] == b'\x14':
+            cyphers[-1] = cyphers[-1][:ctr - 8] + cyphers[-1][ctr - 7:]
             ctr += 1
     return [_symbol for _cypher in cyphers for _symbol in _cypher]
+
+
 def build_next_level(dictionary, path):
     directories = dictionary['dirs'].copy()
-    dictionary['files'] = [{'name': file, 'size': os.stat(os.path.join(path, file)).st_size} for file in dictionary['files']]
-    dictionary['dirs'] = [{'name': _dir, 'files': [file for file in os.listdir(os.path.join(path, _dir)) if os.path.isfile(os.path.join(path, _dir, file))], 'dirs': [dire for dire in os.listdir(os.path.join(path, _dir)) if os.path.isdir(os.path.join(path, _dir, dire))]} for _dir in directories]
+    dictionary['files'] = [{'name': file, 'size': os.stat(os.path.join(path, file)).st_size} for file in
+                           dictionary['files']]
+    dictionary['dirs'] = [{'name': _dir, 'files': [file for file in os.listdir(os.path.join(path, _dir)) if
+                                                   os.path.isfile(os.path.join(path, _dir, file))],
+                           'dirs': [dire for dire in os.listdir(os.path.join(path, _dir)) if
+                                    os.path.isdir(os.path.join(path, _dir, dire))]} for _dir in directories]
     for i in range(len(directories)):
-        build_next_level(dictionary['dirs'][i], 
-            os.path.join(path, directories[i]))
+        build_next_level(dictionary['dirs'][i],
+                         os.path.join(path, directories[i]))
+
+
 def crypt_next_level(dictionary, path, _f_):
     for file in dictionary['files']:
         if file['size']:
-            with open(os.path.join(path,file['name']), 'rb') as f_cur:
-                for c in crypt_data(f_cur.read(),file['size']):
+            with open(os.path.join(path, file['name']), 'rb') as f_cur:
+                for c in crypt_data(f_cur.read(), file['size']):
                     _f_.write(c)
     for dire in dictionary['dirs']:
         crypt_next_level(dire, os.path.join(path, dire['name']), _f_)
+
+
 def scan_next_level(dictionary, path, _f_):
     for file in dictionary['files']:
         if file['size'] == 0:
             open(os.path.join(path, file['name']), 'w').close()
         else:
             with open(os.path.join(path, file['name']), 'wb') as f_out:
-                for c in crypt_data(_f_.read(8*math.ceil(file['size']/8)), file['size']):
+                for c in crypt_data(_f_.read(8 * math.ceil(file['size'] / 8)), file['size']):
                     f_out.write(c)
     for dire in dictionary['dirs']:
         dir_path = os.path.join(path, dire['name'])
         os.mkdir(dir_path)
         scan_next_level(dire, dir_path, _f_)
+
+
 key = ''
-k = ['']*17
-c = ['']*17
-d = ['']*17
-cd = ['']*17
+k = [''] * 17
+c = [''] * 17
+d = [''] * 17
+cd = [''] * 17
 byte = ''
 k[0] = '0'
 mode = 0
@@ -249,28 +272,28 @@ if __name__ == '__main__':
     start_time = time.time()
     key_ = sys.argv[1]
     mode = int(sys.argv[2])
-        # получение 56-битного ключа
+    # получение 56-битного ключа
     for i in range(len(key_)):
         byte = bin(ord(key_[i]))[2:]
-        while len(byte)<8:
-            byte = '0'+byte
+        while len(byte) < 8:
+            byte = '0' + byte
         key += byte
-    while len(key)%56 != 0:
+    while len(key) % 56 != 0:
         key += '00000000'
-    for i in range(len(key)//56):
-        k[0] = bin(int(k[0],2)^int(key[56*i:56*(i+1)],2))[2:]
-    while len(k[0])<56:
-        k[0] = '0'+k[0]
+    for i in range(len(key) // 56):
+        k[0] = bin(int(k[0], 2) ^ int(key[56 * i:56 * (i + 1)], 2))[2:]
+    while len(k[0]) < 56:
+        k[0] = '0' + k[0]
     # расширение ключа до 64 бит
     for i in range(8):
         count = 0
         for j in range(7):
-            if k[0][j+8*i] == '1':
+            if k[0][j + 8 * i] == '1':
                 count += 1
         if count % 2 == 1:
-            k[0] = k[0][:7+8*i] + '0' + k[0][7+i*8:]
+            k[0] = k[0][:7 + 8 * i] + '0' + k[0][7 + i * 8:]
         else:
-            k[0] = k[0][:7+8*i] + '1' + k[0][7+i*8:]
+            k[0] = k[0][:7 + 8 * i] + '1' + k[0][7 + i * 8:]
     # получение c и d блоков из 64-битного ключа
     for i in range(28):
         c[0] += k[0][key_replace_table[i] - 1]
@@ -280,19 +303,20 @@ if __name__ == '__main__':
         c[i + 1] = c[0][spin_table[i]:] + c[0][:spin_table[i]]
         d[i + 1] = d[0][spin_table[i]:] + d[0][:spin_table[i]]
     # получение 16-ти 48-битных подключей
-    for i in range(1,17):
+    for i in range(1, 17):
         cd[i] = c[i] + d[i]
         for j in range(48):
-            k[i] += cd[i][key_select_table[j]-1]
+            k[i] += cd[i][key_select_table[j] - 1]
     # обработка файлов
     if mode == 1:
-        data = {'files' : [sys.argv[i] for i in range(3,len(sys.argv)) if os.path.isfile(sys.argv[i])], 'dirs' : [sys.argv[i] for i in range(4,len(sys.argv)) if os.path.isdir(sys.argv[i])]}
+        data = {'files': [sys.argv[i] for i in range(3, len(sys.argv)) if os.path.isfile(sys.argv[i])],
+                'dirs': [sys.argv[i] for i in range(4, len(sys.argv)) if os.path.isdir(sys.argv[i])]}
         build_next_level(data, os.getcwd())
-        #создание json файла для хранения информации о файлах
+        # создание json файла для хранения информации о файлах
         with open('data.json', 'w') as file:
             json.dump(data, file)
         json_size = os.stat('data.json').st_size
-        with open("TOP_SECRET.lol",'wb') as f2:
+        with open("TOP_SECRET.lol", 'wb') as f2:
             for c in crypt_data(bytes(str(json_size).encode('charmap')), len(str(json_size))):
                 f2.write(c)
             with open('data.json', 'rb') as file:
@@ -303,20 +327,20 @@ if __name__ == '__main__':
         with open("TOP_SECRET.lol", 'a') as f2:
             size = os.stat("TOP_SECRET.lol").st_size
             if size < int(sys.argv[3]):
-                f2.write(''.join(random.choices(string.printable, k=int(sys.argv[3])-size)))
+                f2.write(''.join(random.choices(string.printable, k=int(sys.argv[3]) - size)))
     else:
-        k[1],k[2],k[3],k[4],k[5],k[6],k[7],k[8],k[9],k[10],k[11],k[12],k[13],k[14],k[15],k[16] = (
-        k[16],k[15],k[14],k[13],k[12],k[11],k[10],k[9],k[8],k[7],k[6],k[5],k[4],k[3],k[2],k[1])
+        k[1], k[2], k[3], k[4], k[5], k[6], k[7], k[8], k[9], k[10], k[11], k[12], k[13], k[14], k[15], k[16] = (
+            k[16], k[15], k[14], k[13], k[12], k[11], k[10], k[9], k[8], k[7], k[6], k[5], k[4], k[3], k[2], k[1])
         with open(sys.argv[3], 'rb') as f_in:
-            #извлечение json файла для использования в качестве словаря
+            # извлечение json файла для использования в качестве словаря
             json_size = int(b''.join(crypt_data(f_in.read(8), 8)), 10)
             with open('data.json', 'wb') as file:
-                for c in crypt_data(f_in.read(8*math.ceil(json_size/8)), json_size):
+                for c in crypt_data(f_in.read(8 * math.ceil(json_size / 8)), json_size):
                     file.write(c)
             with open('data.json') as file:
                 data = json.load(file)
-            #поуровневое расшифрование файлов
+            # поуровневое расшифрование файлов
             scan_next_level(data, os.getcwd(), f_in)
-    #удаление временных файлов и вывод времени работы программы
+    # удаление временных файлов и вывод времени работы программы
     os.remove('data.json')
     print('прошедшее время: ', time.time() - start_time)
